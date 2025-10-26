@@ -1,0 +1,329 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+
+ФАКУЛЬТЕТ КОМП’ЮТЕРНИХ НАУК
+КАТЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+
+
+
+
+ЗВІТ
+до практичного завдання №1 з дисципліни
+«Аналіз та рефакторинґ коду»
+на тему: «Правила оформлення програмного коду
+на мові Kotlin згідно з JetBrains Kotlin Coding Convention»
+
+
+
+
+
+
+Виконав:                                                                                                  Перевірив:
+ст. гр. ПЗПІ-23-6                       				ст. викладач катедри ПІ
+Ананьєв Несторіан Сергійович		                    Сокорчук Ігор Петрович
+
+
+
+
+
+
+
+Харків 2025
+1 ІСТОРІЯ ЗМІН 
+
+№ДатаВерсія звітуОпис змін та виправлень126.10.20251Створено звіт
+
+
+2 ЗАВДАННЯ
+
+     Метою даної практичної роботи є дослідження та аналіз офіційних рекомендацій щодо оформлення програмного коду для обраної мови програмування, а також демонстрація їх практичного застосування на конкретних прикладах.
+     У рамках роботи необхідно обрати мову програмування, ознайомитися з її офіційними coding conventions та підготувати презентацію з детальними поясненнями кожної рекомендації.
+     Студент повинен здійснити дослідження офіційної документації обраної мови програмування, зокрема style guides та coding conventions. Необхідно виділити ключові аспекти оформлення коду: правила іменування (пакетів, класів, функцій, змінних, констант), принципи форматування (відступи, дужки, пробіли), структуру класів та файлів, ідіоматичні конструкції мови, а також рекомендації щодо написання читабельного та підтримуваного коду. Для кожної рекомендації необхідно підготувати наочні приклади коду, які демонструють як правильне, так і неправильне застосування відповідного правила, з детальними поясненнями важливості кожного стандарту.
+     На основі проведеного дослідження студент має підготувати презентацію, яка включає вступну частину з оглядом обраної мови програмування, основну частину з детальним розглядом конкретних рекомендацій coding conventions із прикладами коду, а також висновки про важливість дотримання стандартів оформлення. Презентація повинна містити не менше 10 основних слайдів, бути оформленою українською мовою та містити чіткі приклади коду.
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+     3.1 Вибір мови програмування та джерел
+     Для виконання практичної роботи обрано мову програмування Kotlin – сучасну мову для JVM та Android, розроблену JetBrains у 2011 році, що є офіційною для Android розробки з 2017 року. 
+     3.2 Правила іменування
+     Згідно з Kotlin Coding Conventions, пакети іменуються в нижньому регістрі без підкреслень (org.example.project), класи – у стилі UpperCamelCase (UserManager, DataProcessor). Функції та змінні використовують lowerCamelCase (processUser(), userName), константи – UPPER_SNAKE_CASE (MAX_VALUE, DEFAULT_TIMEOUT).
+     
+1  // Поганий приклад
+2  package org.example.My_Project
+3  package com.company.UTILS
+4  class userManager {
+5  
+6  }
+7  
+8  class data_processor {
+9  
+10 }
+11 fun ProcessUser() {
+12 
+13 }
+14 
+15 fun Do_something() {
+16 
+17 }
+18 val MyVariable = 10
+19 var user_name = "John"
+20 const val maxValue = 100
+21 // Гарний приклад
+22 package org.example.myproject
+23 package com.company.utils
+24 class UserManager {
+25 
+26 }
+27 
+28 class DataProcessor {
+29 
+30 }
+31 fun processUser() {
+32 
+33 }
+34 fun doSomething() {
+35 
+36 }
+37 val myVariable = 10
+38 var userName = "John"
+39 const val MAX_VALUE = 100
+40 const val DEFAULT_TIMEOUT = 30 
+     3.3 Правила форматування коду
+     Офіційні conventions визначають використання чотирьох пробілів для відступів, відкриваючу дужку на тому ж рядку, відмову від крапки з комою. Пробіли ставляться навколо бінарних операторів (a + b), але не навколо «.» та «?.». Для шаблонів рядків фігурні дужки не використовуються для простих змінних ("Hello, $name!"), але обов'язкові для виразів ("Sum: ${a + b}").
+     
+1  // Поганий приклад
+2  fun calculate()
+3  {
+4      if (condition)
+5      {
+6      doSomething();
+7      doMore();
+8      }
+9  }
+10 
+11 val sum=a+b
+12 val result = a+b*c
+13 result . toString()
+14 val name = person ?. name
+15 val message = "Hello, ${name}!"
+16 //Коментар
+17 
+18 // Гарний приклад
+19 fun calculate() {
+20     if (condition) {
+21         doSomething()
+22         doMore()
+23     }
+24 }
+25 fun processData(items: List<Int>) {
+26     items.forEach { item ->
+27         process(item)
+28     }
+29 }
+30 
+31 val sum = a + b
+32 val result = a + b * c
+33 result.toString()
+34 val name = person?.name
+35 val message = "Hello, $name!"
+36 val result = "Sum: ${a + b}"
+37 val information = "User: $user.name"
+38 // Коментар
+     3.4 Структура класу
+     Kotlin Coding Conventions визначають порядок елементів у класі: оголошення властивостей, блоки ініціалізації, додаткові конструктори, методи (згруповані за логікою), companion object (в кінці). Цей порядок забезпечує логічну послідовність читання класу від стану об'єкта до його поведінки.
+     
+1  class Person(val name: String) {
+2      var age: Int = 0
+3      private val id: String = generateId()
+4      init {
+5          println("Created: $name")
+6          validate()
+7      }
+8  
+9      constructor(name: String, age: Int) : this(name) {
+10         this.age = age
+11     }
+12 
+13     fun greet() = println("Hi, $name!")
+14     
+15     fun celebrate() {
+16         println("Happy birthday!")
+17     }
+18 
+19     private fun validate() {
+20         require(name.isNotEmpty())
+21     }
+22 
+23     companion object {
+24         const val MAX_AGE = 150
+25         fun create(name: String) = Person(name)
+26     }
+27 }
+     3.5 Ідіоматичний Kotlin
+     Conventions рекомендують використовувати val замість var та незмінні колекції (List, Set, Map) замість змінних (MutableList, MutableSet, MutableMap).
+     Для функцій з одним виразом рекомендується expression body зі знаком рівності замість фігурних дужок.
+     
+1  // Поганий приклад
+2  var name = "John"
+3  var config = Config()
+4  var list = mutableListOf(1, 2, 3)
+5  fun processItems(items: MutableList<String>) {
+6      items.forEach { process(it) }
+7  }
+8  
+9  fun double(x: Int): Int {
+10     return x * 2
+11 }
+12 fun isPositive(x: Int): Boolean {
+13     return x > 0
+14 }
+15 fun getFullName(user: User): String {
+16     return user.firstName + " " + user.lastName
+17 }
+18 
+19 // Гарний приклад
+20 val name = "John"
+21 val config = Config()
+22 val list = listOf(1, 2, 3)
+23 fun processItems(items: List<String>) {
+24     items.forEach { process(it) }
+25 }
+26 var counter = 0
+27 for (item in items) {
+28     counter += item.value
+29 }
+30 
+31 fun double(x: Int) = x * 2
+32 fun isPositive(x: Int) = x > 0
+33 fun getFullName(user: User) = 
+34     "${user.firstName} ${user.lastName}"
+     3.6 Параметри за замовчуванням
+     Kotlin Conventions рекомендують параметри зі значеннями за замовчуванням замість множини перевантажених функцій. Для функцій з багатьма параметрами використовуються named arguments.
+     
+1  // Поганий приклад
+2  fun connect(host: String) {
+3      connect(host, 8080)
+4  }
+5  fun connect(host: String, port: Int) {
+6      connect(host, port, 30)
+7  }
+8  processUser(user, true, false, 100)
+9  // Гарний приклад
+10 fun connect(host: String, port: Int = 8080) {
+11 }
+12 connect("localhost")
+13 connect("localhost", 9000)
+14 processUser(user = user, notify = true, validate = false)
+15 fun sendEmail(
+16     to: String, 
+17     subject: String, 
+18     body: String = "", 
+19     attachments: List<File> = emptyList()
+20 )
+     3.7 Умовні оператори
+     Conventions визначають використання if для бінарних умов та when для трьох і більше варіантів. Рекомендується expression form для присвоєння результату змінній.
+     
+1  // Поганий приклад
+2  when (isValid) {
+3      true -> processData()
+4      false -> showError()
+5  }
+6  val result: String
+7  if (success) {
+8      result = "OK"
+9  } else {
+10     result = "Error"
+11 }
+12 // Гарний приклад
+13 if (isValid) {
+14      processData()
+15 } else {
+16      showError()
+17 }
+18 val result = if (success) "OK" else "Error"
+19 val data = when (type) {
+20     Type.JSON -> parseJson()
+21     Type.XML -> parseXml()
+22     else -> parseDefault()
+23 }
+     3.8 Інструменти автоматизації
+     Для дотримання Kotlin Coding Conventions використовуються: ktlint (автоматичний linter з форматером), Detekt (статичний аналіз коду), IntelliJ IDEA Code Style (вбудовані інструменти).
+
+
+ВИСНОВКИ
+
+   У результаті виконання практичної роботи було розглянуто офіційні Kotlin Coding Conventions від JetBrains, що визначають стандарти оформлення програмного коду для мови Kotlin. Досліджено ключові аспекти conventions: правила іменування пакетів, класів, функцій, змінних та констант; принципи форматування коду з відступами, дужками та пробілами; структуру класів; ідіоматичні підходи Kotlin (принцип незмінності, функції у вигляді виразу, параметри за замовчуванням); рекомендації щодо умовних операторів.
+   Практична робота показала, що використання офіційних стандартів оформлення коду та інструментів автоматизації (ktlint, Detekt) є необхідною умовою для професійної розробки програмного забезпечення.
+
+
+ВИКОРИСТАНІ ДЖЕРЕЛА
+
+1. Kotlin Coding Conventions (Official Documentation). URL: https://kotlinlang.org/docs/coding-conventions.html (дата звернення: 26.10.2025).
+2. Kotlin Language Documentation. URL: https://kotlinlang.org/docs/home.html (дата звернення: 26.10.2025).
+3. Ktlint – An anti-bikeshedding Kotlin linter with built-in formatter. URL: https://pinterest.github.io/ktlint (дата звернення: 26.10.2025).
+4. Detekt – Static Code Analysis for Kotlin. URL: https://detekt.dev/ (дата звернення: 26.10.2025). 
+
+ 
+
+ДОДАТОК А
+Відеозапис
+Відеозапис доповіді: https://www.youtube.com/watch?v=K-wVVrzUGJI
+
+     Хронологічний опис відеозапису:
+0:00 – Вступ
+1:05  – Правила іменування
+3:15 – Правила форматування
+5:34 – Структура класу
+6:13 – Ідіоматичний Kotlin
+8:05 – Параметри за замовчуванням
+8:59 – Умовні оператори та expression form
+9:44 – Висновки
+
+
+
+
+ДОДАТОК Б
+Слайди презентації
+
+Рисунок Б.1 – Титульний слайд презентації
+
+
+Рисунок Б.2 – Опис мови Kotlin
+
+
+Рисунок Б.3 – Правила іменування пакетів та класів
+
+
+Рисунок Б.4 – Правила іменування функцій, змінних та констант
+
+
+
+Рисунок Б.5 – Форматування відступів і дужок
+
+
+Рисунок Б.6 – Форматування пробілів та шаблонів рядків
+
+
+Рисунок Б.7 – Порядок елементів в структурі класу
+
+
+Рисунок Б.8 – Незмінність даних
+
+
+Рисунок Б.9 – Expression body для функцій
+
+
+Рисунок Б.10 – Параметри за замовчуванням
+
+
+Рисунок Б.11 – Умовні оператори та expression form
+
+
+Рисунок Б.12 – Висновки
+
+
+	Рисунок Б.13 – Список використаних джерел
+
+
+2
+
+
