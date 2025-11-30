@@ -1,0 +1,253 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+
+ФАКУЛЬТЕТ КОМП’ЮТЕРНИХ НАУК
+КАТЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+
+
+
+
+ЗВІТ
+до практичного завдання №2 з дисципліни
+«Аналіз та рефакторинґ коду»
+на тему: «Методи рефакторинґу коду програмного забезпечення: Decompose Conditional, Preserve Whole Object, Replace Type Code with Class»
+
+
+
+
+
+
+Виконав:                                                                                                  Перевірив:
+ст. гр. ПЗПІ-23-6                       				ст. викладач катедри ПІ
+Ананьєв Несторіан Сергійович		                    Сокорчук Ігор Петрович
+
+
+
+
+
+
+
+Харків 2025
+1 ІСТОРІЯ ЗМІН 
+
+№ДатаВерсія звітуОпис змін та виправлень130.11.20251Створено звіт
+
+
+2 ЗАВДАННЯ
+
+     Метою даної практичної роботи є поглиблене вивчення та практичне засвоєння методів рефакторинґу програмного забезпечення, спрямованих на покращення внутрішньої структури коду без зміни його зовнішньої поведінки, а також аналіз впливу цих перетворень на якість програмного продукту. У рамках роботи необхідно ознайомитися з фундаментальними підходами до рефакторинґу, описаними у праці Мартіна Фаулера, обрати три унікальні методи та продемонструвати їх застосування на фрагментах власного коду, написаного під час виконання попередніх навчальних завдань або курсових проєктів.
+     Студент повинен виявити у своєму коді ділянки, що містять так звані «запахи коду» або структурні недоліки, та усунути їх за допомогою обраних технік, підготувавши наочні приклади стану коду «до» та «після» внесених змін. Для кожного прикладу необхідно надати обґрунтування доцільності рефакторинґу, пояснивши суть проблеми, яку вирішує конкретний метод, та описати переваги отриманого рішення в контексті читабельності, гнучкості та простоти підтримки.
+      На основі проведеної роботи студент має підготувати презентацію, яка містить теоретичний вступ, детальний розбір трьох прикладів рефакторинґу, огляд можливостей автоматизованого рефакторинґу в сучасних інтегрованих середовищах розробки, а також висновки щодо важливості регулярного покращення кодової бази.
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+     3.1 Вибір мови програмування та джерел
+     Для виконання практичної роботи обрано три методи рефакторингу з класичного каталогу Мартіна Фаулера. Метою застосування цих технік є підвищення читабельності програмного коду, зменшення його складності та покращення архітектурної гнучкості. Всі приклади реалізовано мовою програмування TypeScript. 
+     До переліку обраних методів увійшли: 
+- Decompose Conditional (декомпозиція умовного виразу) – застосовується для спрощення складних логічних розгалужень шляхом винесення умов у окремі методи.
+- Preserve Whole Object (збереження цілого об'єкта) – використовується для оптимізації сигнатур методів шляхом передачі об'єктів-контейнерів замість довгих списків розрізнених параметрів.
+- Replace Type Code with Class (заміна коду типу класом) – дозволяє позбутися примітивних значень (enum або чисел) для позначення типів, замінивши їх повноцінними класами з інкапсульованою поведінкою.
+
+3.2 Метод Decompose Conditional (декомпозиція умовного виразу)
+     Даний метод рефакторинґу застосовується для спрощення складних умовних конструкцій шляхом винесення логіки в окремі методи з промовистими назвами. Це дозволяє чітко розділити намір (що ми перевіряємо) та реалізацію (як саме ми це перевіряємо).
+     У вихідній реалізації методу processInvoiceStatus основна бізнес-логіка залежала від громіздкого умовного оператора. Головною проблемою була змішана абстракція: в одному виразі перевірявся статус відповіді від платіжної системи, наявність обʼєкта підписки, її поточний статус та валідація дати наступного платежу. Це робило код важким для сприйняття. Крім того, таку складну умову важко протестувати ізольовано або використати повторно.
+1  async processInvoiceStatus(transaction: TransactionEntity, data: InvoiceStatusDto) {
+2    const subscription = transaction.subscription;
+3    if (
+4      data.status === InvoiceStatus.SUCCESS &&
+5      subscription !== null &&
+6      (subscription.status !== SubscriptionStatus.ACTIVE ||
+7        (subscription.nextPaymentDate &&
+8         subscription.nextPaymentDate < new Date())) &&
+9      !transaction.isCardUpdating
+10   ) {
+11     subscription.status = SubscriptionStatus.ACTIVE;
+12     subscription.nextPaymentDate = 
+this.calculateNextPaymentDate();
+13     await this.subscriptionRepository.save(subscription);
+14   }
+15 }
+     
+     В результаті рефакторингу складну умову було декомпозовано. Логіку перевірки винесено в метод shouldActivateSubscription. Всередині нього застосовано патерн Guard Clauses (охоронні вирази) для раннього відсіювання помилкових станів, що зменшило рівень вкладеності. Специфічні правила щодо статусу та термінів підписки ізольовано в метод needsReactivation.
+     Такий підхід забезпечив розділення відповідальності: головний метод тепер описує сценарій виконання, а допоміжні методи містять деталі реалізації. 
+     
+1  async processInvoiceStatus(transaction: TransactionEntity, data: InvoiceStatusDto) {
+2    const subscription = transaction.subscription;
+3    if (this.shouldActivateSubscription(data, subscription, transaction)) {
+4      await this.activateSubscription(subscription);
+5    }
+6  }
+7  private shouldActivateSubscription(
+8    data: InvoiceStatusDto,
+9    subscription: SubscriptionEntity | null,
+10   transaction: TransactionEntity,
+11 ): boolean {
+12   if (data.status !== InvoiceStatus.SUCCESS) return false;
+13   if (!subscription || transaction.isCardUpdating) return false;
+14   return this.needsReactivation(subscription);
+15 }
+16 private needsReactivation(subscription: SubscriptionEntity): boolean {
+17   const isInactive = subscription.status !== SubscriptionStatus.ACTIVE;
+18   const isOverdue = subscription.nextPaymentDate && subscription.nextPaymentDate < new Date();
+19   return isInactive || isOverdue;
+20 }
+21 private async activateSubscription(subscription: SubscriptionEntity) {
+22   subscription.status = SubscriptionStatus.ACTIVE;
+23   subscription.nextPaymentDate = this.calculateNextPaymentDate();
+24   await this.subscriptionRepository.save(subscription);
+25 }
+
+     3.3 Метод Preserve Whole Object (збереження цілого об'єкта)
+     Даний метод рефакторинґу передбачає передачу цілого об'єкта як параметра замість вибірки окремих його значень. Це дозволяє уникнути так званих «скупчень даних» (Data Clumps), коли групи параметрів постійно передаються разом, захаращуючи сигнатури методів.
+     У початковому варіанті методу sendInvitationEmail спостерігалася значна проблема з кількістю аргументів. Метод приймав 5 окремих параметрів, які доводилося «розпаковувати» з об'єктів у місці виклику. Це створювало каскадну складність, оскільки внутрішній метод renderTemplate також був перевантажений списком аргументів. Така структура є крихкою: будь-яка зміна бізнес-вимог (наприклад, необхідність додати імʼя власника у лист) призвела б до необхідності змінювати сигнатуру методу та код у всіх місцях його виклику.
+     
+1  async sendInvitationEmail(
+2    email: string,
+3    token: string,
+4    companyName: string,
+5    role: string,
+6    language: string,
+7  ): Promise<void> {
+8    const invitationLink = `${this.frontendUrl}/auth/accept-invitation?token=${token}`;
+9    const { html } = this.templateService.renderTemplate(
+10     invitationLink, companyName, role, language,
+11   );
+12   await this.emailProvider.sendEmail(email, html);
+13 }
+14 await service.sendInvitationEmail(
+15   invitation.email,
+16   invitation.token,
+17   owner.company.name,
+18   invitation.role,
+19   owner.language,
+20 );
+
+     В результаті рефакторингу замість окремих полів у метод передаються цілісні обʼєкти Invitation та CompanyOwner. Це дозволило скоротити кількість аргументів з 5 до 2 у зовнішньому методі та з 4 до 3 у внутрішньому, зробивши сигнатури «чистими».
+     Такий підхід значно підвищив гнучкість системи: метод renderTemplate тепер має доступ до всього контексту обʼєкта owner. Якщо у майбутньому знадобиться додати в шаблон логотип компанії (owner.company.logo), це можна буде зробити без зміни сигнатури методу. Також покращилася звʼязність коду, оскільки дані залишаються інкапсульованими у своїй структурі.
+     
+1  async sendInvitationEmail(
+2    invitation: Invitation,
+3    owner: CompanyOwner
+4  ): Promise<void> {
+5    const invitationLink = `${this.frontendUrl}/auth/accept-invitation?token=${invitation.token}`;
+6    const { html } = this.templateService.renderTemplate(
+7      invitation, owner, invitationLink
+8    );
+9    await this.emailProvider.sendEmail(
+10     invitation.email, html
+11   );
+12 }
+13 await service.sendInvitationEmail(invitation, owner);
+
+     3.4 Метод Replace Type Code with Class (заміна коду типу класом)
+     Цей метод рефакторинґу передбачає заміну примітивних типів даних (чисел, рядків) або перерахувань (enum), які керують логікою програми, на повноцінні класи. Це дозволяє перенести специфічну для типу поведінку безпосередньо в сам тип, замість того щоб тримати її в зовнішніх процедурах.
+     У вихідному коді для керування станами підписки використовувався стандартний enum. Це призводило до залежності бізнес-логіки від численних умовних операторів у допоміжних функціях. Дані (сам статус) були відокремлені від поведінки (правил поновлення чи відображення), що є порушенням принципу інкапсуляції. Найбільшою проблемою була складність підтримки: додавання будь-якого нового статусу вимагало пошуку та модифікації всіх перевірок умов по всьому проєкту, що збільшувало ризик виникнення помилок.
+     
+1  enum SubscriptionStatus { ACTIVE, PAST_DUE, CANCELLED }
+2  function canRenew(status: SubscriptionStatus): boolean {
+3    if (status === SubscriptionStatus.PAST_DUE) return true;
+4    if (status === SubscriptionStatus.CANCELLED) return true;
+5    return false;
+6  }
+7  function getLabel(status: SubscriptionStatus): string {
+8    if (status === SubscriptionStatus.ACTIVE)
+9      return 'Активна';
+10   if (status === SubscriptionStatus.PAST_DUE)
+11     return 'Протермінована';
+12   return 'Скасована';
+13 }
+     
+     В результаті рефакторинґу створено клас SubscriptionStatusType з наперед визначеними статичними екземплярами, що замінили enum. Це забезпечило справжню інкапсуляцію: кожен статус тепер самостійно містить інформацію про свою поведінку. Клієнтський код повністю позбувся умовних розгалужень і тепер просто викликає методи обʼєкта. Система стала безпечною для розширення: щоб додати новий статус, достатньо створити нове статичне поле у класі, не змінюючи існуючу логіку перевірок в інших частинах програми.
+     
+1  class SubscriptionStatusType {
+2    static readonly ACTIVE =
+3      new SubscriptionStatusType('Активна', false);
+4    static readonly PAST_DUE =
+5      new SubscriptionStatusType('Протермінована', true);
+6    static readonly CANCELLED =
+7      new SubscriptionStatusType('Скасована', true);
+8    private constructor(
+9      private label: string,
+10     private renewAllowed: boolean
+11   ) {}
+12   getLabel(): string { return this.label; }
+13   canRenew(): boolean { return this.renewAllowed; }
+14 }
+15 if (subscription.status.canRenew()) {
+16   this.showPayButton();
+17 }
+
+ВИСНОВКИ
+
+     У ході виконання практичної роботи було досліджено та успішно застосовано фундаментальні методи рефакторингу коду на прикладі мови TypeScript. Використання таких технік, як Decompose Conditional, Preserve Whole Object та Replace Type Code with Class, дозволило трансформувати складні, важкочитабельні фрагменти програмного забезпечення у гнучкі та зрозумілі структури. Зокрема, вдалося ефективно усунути поширені «запахи коду»: надмірну вкладеність умовних операторів, проблему «скупчень даних» у сигнатурах методів та порушення інкапсуляції при роботі зі станами. Практичні приклади продемонстрували, що декомпозиція логіки та перехід до об'єктно-орієнтованих абстракцій значно підвищують рівень самодокументованості коду.
+     
+
+ВИКОРИСТАНІ ДЖЕРЕЛА
+
+1. Fowler M. Refactoring: Improving the Design of Existing Code (2nd Edition). URL: https://refactoring.com (дата звернення: 30.11.2025).
+2. Refactoring.Guru. Catalog of Refactoring Patterns. URL: https://refactoring.guru/refactoring (дата звернення: 30.11.2025).
+3. TypeScript Official Documentation. URL: https://www.typescriptlang.org/docs (дата звернення: 30.11.2025).
+4. JetBrains IntelliJ IDEA Documentation. Code Refactoring. URL: https://www.jetbrains.com/help/idea/refactoring-source-code.html (дата звернення: 30.11.2025).
+5. Clean Code concepts adapted for TypeScript. URL: https://github.com/labs42io/clean-code-typescript (дата звернення: 30.11.2025).
+
+ 
+
+ДОДАТОК А
+Відеозапис
+Відеозапис доповіді: https://www.youtube.com/watch?v=hd1km-Fne44
+
+     Хронологічний опис відеозапису:
+0:00 – Вступ
+1:10 – Призначення рефакторинґу
+2:01 – Іструменти для рефакторинґу
+3:13 – Огляд обраних методів рефакторинґу
+4:51 – Метод рефакторинґу Decompose Conditional
+7:00 – Метод рефакторинґу Preserve Whole Object
+8:40 – Метод рефакторинґу Replace Type Code with Class
+10:32 – Висновки
+
+
+
+ДОДАТОК Б
+Слайди презентації
+
+Рисунок Б.1 – Титульний слайд презентації
+
+
+Рисунок Б.2 – Визначення рефакторинґу
+
+
+Рисунок Б.3 – Призначення рефакторинґу
+
+
+Рисунок Б.4 – Іструменти для рефакторинґу
+
+
+
+Рисунок Б.5 – Огляд обраних методів рефакторинґу
+
+
+Рисунок Б.6 – Код до рефакторинґу методом Decompose Conditional
+
+
+Рисунок Б.7 – Код після рефакторинґу методом Decompose Conditional
+
+
+Рисунок Б.8 – Код до рефакторинґу методом Preserve Whole Object
+
+Рисунок Б.9 – Код після рефакторинґу методом Preserve Whole Object
+
+
+Рисунок Б.10 – Код до рефакторинґу методом Replace Type Code with Class
+
+Рисунок Б.11 – Код після рефакторинґу методом Replace Type Code with Class
+
+
+Рисунок Б.12 – Висновки
+
+
+	Рисунок Б.13 – Список використаних джерел
+
+
+2
+
+
