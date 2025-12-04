@@ -1,0 +1,478 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+
+
+ФАКУЛЬТЕТ КОМП’ЮТЕРНИХ НАУК
+КАТЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+
+
+
+
+
+
+
+
+ЗВІТ
+до лабораторної роботи №3 з дисципліни
+«Аналіз та рефакторинґ коду»
+на тему: «РОЗРОБКА БІЗНЕС-ЛОГІКИ ТА
+ФУНКЦІЙ АДМІНІСТРУВАННЯ СЕРВЕРНОЇ ЧАСТИНИ ПРОГРАМНОЇ
+СИСТЕМИ»
+
+
+
+
+
+
+
+
+Виконав:                                                                                                  Перевірив:
+ст. гр. ПЗПІ-23-6                                                                      ас. катедри ПІ
+Ананьєв Несторіан Сергійович                        Дашенков Дмитро Сергійович
+
+
+
+
+Харків 2025
+
+
+
+
+1 ЗАВДАННЯ
+
+
+У ході виконання лабораторної роботи необхідно спроєктувати та реалізувати розширену бізнес-логіку серверної частини програмної системи, а також механізми адміністрування для керування ресурсами та користувачами. Основна увага приділяється розробці алгоритмів обробки даних, що виходять за межі базових CRUD-операцій.
+
+
+________________
+
+
+2 ОПИС ВИКОНАНОЇ РОБОТИ
+2.1. Опис інженерних рішень та архітектури системи
+ Основу бізнес-логіки системи складає управління життєвим циклом рейсів з чотирма ключовими фазами: планування (створення маршруту, часу відправлення), призначення (вибір водія та транспорту), виконання (відстеження в реальному часі) та завершення (фіксація результатів). Центральним інженерним рішенням є розумна маршрутизація телеметричних даних: коли транспорт виконує активний рейс, система зберігає всю історію переміщень для подальшої аналітики маршруту, витрат палива та дотримання графіку; коли транспорт не на рейсі – система фіксує лише останню позицію для загального моніторингу автопарку. Це дозволяє власникам та диспетчерам бачити повну картину де знаходяться всі транспортні засоби компанії незалежно від їх статусу, водночас зберігаючи детальну історію тільки для комерційних рейсів.
+Функції адміністрування реалізовано через рольову модель доступу з трьома основними ролями: власник компанії управляє всіма ресурсами (транспорт, GPS-трекери, персонал, публічні канали відстеження), диспетчери відповідають за оперативне планування та моніторинг рейсів, водії отримують призначені рейси та виконують їх. Власник може створювати публічні канали відстеження для надання клієнтам можливості слідкувати за доставкою в режимі реального часу без доступу до внутрішньої системи компанії. Диспетчери мають повний контроль над життєвим циклом рейсів – від планування з вказанням точок відправлення та призначення до оперативного керування (старт, зупинка, скасування) та призначення рейсів на публічні канали. Ключовою особливістю системи є автоматична обробка офлайн-періодів: якщо GPS-трекер втрачає звʼязок, він локально зберігає дані про переміщення, а при відновленні звʼязку надсилає весь накопичений масив телеметрії, а система коректно його обробляє.
+
+
+2.2. Моделювання поведінки системи
+Для детального проєктування бізнес-логіки серверної частини було виконано поведінкове моделювання системи з використанням мови UML. Розроблена діаграма діяльності для життєвого циклу рейсу (див. рис. 2.1) візуалізує послідовність переходів між станами бізнес-процесу: від етапу планування та активації поїздки до її виконання та фінального завершення. 
+
+
+  
+
+Рисунок 2.1 – UML-діаграма діяльності для життєвого циклу рейсу
+Окремо змодельовано алгоритм обробки телеметрії (див. рис. 2.2), який демонструє розгалужену логіку маршрутизації вхідних даних від GPS-трекера, визначаючи сценарій збереження координат залежно від наявності активного рейсу.
+  
+
+Рисунок 2.2 – UML-діаграма діяльності для обробки телеметрії 
+Деталізацію взаємодії обʼєктів під час виконання цих процесів наведено на діаграмах послідовності. 
+Діаграма життєвого циклу рейсу (див. рис. 2.3) відображає хронологію обміну повідомленнями між диспетчером, водієм, трекером та клієнтськими додатками, охоплюючи повний шлях замовлення. 
+
+
+  
+
+Рисунок 2.3 – UML-діаграма послідовності життєвого циклу рейсу
+
+
+Технічну реалізацію високоінтенсивної обробки даних розкрито на діаграмі маршрутизації телеметрії (див. рис. 2.4), де показано взаємодію серверних сервісів із Redis-кешем для оптимізації перевірок та розподілу потоків даних між історією маршрутів і поточною позицією обʼєктів.
+
+
+  
+
+Рисунок 2.4 – UML-діаграма послідовності обробки телеметрії
+
+
+
+
+2.3. Програмна реалізація бізнес-логіки
+Основна бізнес-логіка системи, що відповідає за "розумну" маршрутизацію телеметрії та обробку накопичених даних, інкапсульована у класі IotService. Цей сервіс реалізує складний алгоритм обробки вхідних даних від GPS-трекерів, розрізняючи потокові дані та офлайн-пакети. Ключовим методом є saveBatchTelemetry, який сортує масив історичних даних за часом та зіставляє кожну точку з відповідним рейсом, що був активним у той момент (використовуючи часові мітки actual_start_datetime та end_datetime). Якщо транспорт знаходився на активному маршруті, дані зберігаються в таблицю SensorData для побудови треку, якщо ж ні – оновлюється лише остання відома позиція автомобіля в сутності Vehicle. Така архітектура дозволяє системі коректно відновлювати історію поїздок навіть після тривалої втрати зв'язку, при цьому не засмічуючи базу даних непотрібною історією під час простою транспорту.
+
+
+@Injectable()
+export class IotService {
+ private readonly logger = new Logger(IotService.name);
+
+
+ constructor(
+   private readonly configService: ConfigService,
+   private readonly cacheService: TelemetryCacheService,
+   @InjectRepository(Tracker)
+   private trackerRepository: Repository<Tracker>,
+   @InjectRepository(SensorData)
+   private sensorDataRepository: Repository<SensorData>,
+   @InjectRepository(Trip)
+   private tripRepository: Repository<Trip>,
+   @InjectRepository(Vehicle)
+   private vehicleRepository: Repository<Vehicle>,
+   @InjectRepository(TrackingChannel)
+   private trackingChannelRepository: Repository<TrackingChannel>,
+ ) {}
+
+
+ async authenticate(
+   username: string,
+   password: string,
+ ): Promise<MqttAuthResult> {
+   const internalUsername = this.configService.get<string>(
+     'MQTT_INTERNAL_USERNAME',
+   );
+   const internalPassword = this.configService.get<string>(
+     'MQTT_INTERNAL_PASSWORD',
+   );
+
+
+   if (username === internalUsername && password === internalPassword) {
+     return { type: 'internal' };
+   }
+
+
+   const trackerId = this.parseTrackerUsername(username);
+   if (!trackerId) {
+     this.logger.warn(`Invalid tracker username format: ${username}`);
+     return null;
+   }
+
+
+   const tracker = await this.trackerRepository.findOne({
+     where: { tracker_id: trackerId },
+   });
+
+
+   if (!tracker) {
+     this.logger.warn(`Tracker not found: ${trackerId}`);
+     return null;
+   }
+
+
+   const isValid = await bcrypt.compare(
+     password,
+     tracker.device_secret_token_hash,
+   );
+
+
+   if (!isValid) {
+     this.logger.warn(`Invalid token for tracker: ${trackerId}`);
+     return null;
+   }
+
+
+   return { type: 'tracker', tracker };
+ }
+
+
+ parseTrackerUsername(username: string): number | null {
+   const match = username.match(TRACKER_USERNAME_PATTERN);
+   return match ? parseInt(match[1], 10) : null;
+ }
+
+
+ checkAcl(
+   username: string,
+   topic: string,
+   action: 'publish' | 'subscribe',
+ ): boolean {
+   const internalUsername = this.configService.get<string>(
+     'MQTT_INTERNAL_USERNAME',
+   );
+
+
+   if (username === internalUsername) {
+     return action === 'subscribe' && topic === MQTT_TOPICS.TELEMETRY_WILDCARD;
+   }
+
+
+   const trackerId = this.parseTrackerUsername(username);
+   if (!trackerId) {
+     return false;
+   }
+
+
+   return (
+     action === 'publish' &&
+     topic === `${MQTT_TOPICS.TELEMETRY_PREFIX}${trackerId}`
+   );
+ }
+
+
+ async findActiveTrip(vehicleId: number): Promise<Trip | null> {
+   return this.tripRepository.findOne({
+     where: {
+       vehicle_id: vehicleId,
+       status: TripStatus.IN_PROGRESS,
+     },
+   });
+ }
+
+
+ async getActiveTripData(
+   trackerId: number,
+   vehicleId: number,
+ ): Promise<{ tripId: number; companyId: number } | null> {
+   const cached = await this.cacheService.getTripMapping(trackerId);
+   if (cached && cached.vehicleId === vehicleId && cached.companyId) {
+     return { tripId: cached.tripId, companyId: cached.companyId };
+   }
+
+
+   const trip = await this.findActiveTrip(vehicleId);
+   if (!trip) {
+     return null;
+   }
+
+
+   await this.cacheService.setTripMapping(trackerId, {
+     vehicleId,
+     tripId: trip.trip_id,
+     companyId: trip.company_id,
+   });
+
+
+   return { tripId: trip.trip_id, companyId: trip.company_id };
+ }
+
+
+ async saveTelemetry(
+   tracker: Tracker,
+   telemetry: TelemetryDto,
+ ): Promise<SaveTelemetryResult | null> {
+   if (!tracker.vehicle_id) {
+     return null;
+   }
+
+
+   const datetime = new Date(telemetry.datetime);
+
+
+   const tripData = await this.getActiveTripData(
+     tracker.tracker_id,
+     tracker.vehicle_id,
+   );
+
+
+   if (tripData) {
+     const sensorData = this.sensorDataRepository.create({
+       trip_id: tripData.tripId,
+       latitude: Number(telemetry.latitude),
+       longitude: Number(telemetry.longitude),
+       speed: telemetry.speed ? Number(telemetry.speed) : undefined,
+       bearing: telemetry.bearing ? Number(telemetry.bearing) : undefined,
+       datetime,
+       temperature: telemetry.temperature
+         ? Number(telemetry.temperature)
+         : undefined,
+       humidity: telemetry.humidity ? Number(telemetry.humidity) : undefined,
+     });
+
+
+     const saved = await this.sensorDataRepository.save(sensorData);
+     return {
+       sensorData: saved,
+       tripId: tripData.tripId,
+       companyId: tripData.companyId,
+     };
+   }
+
+
+   const vehicle = await this.vehicleRepository.findOne({
+     where: { vehicle_id: tracker.vehicle_id },
+     select: ['vehicle_id', 'company_id'],
+   });
+
+
+   if (!vehicle || !vehicle.company_id) {
+     return null;
+   }
+
+
+   await this.vehicleRepository.update(tracker.vehicle_id, {
+     last_latitude: Number(telemetry.latitude),
+     last_longitude: Number(telemetry.longitude),
+     last_speed: telemetry.speed ? Number(telemetry.speed) : undefined,
+     last_bearing: telemetry.bearing ? Number(telemetry.bearing) : undefined,
+     last_temperature: telemetry.temperature
+       ? Number(telemetry.temperature)
+       : undefined,
+     last_humidity: telemetry.humidity
+       ? Number(telemetry.humidity)
+       : undefined,
+     last_update_time: datetime,
+   });
+
+
+   return {
+     sensorData: {
+       latitude: Number(telemetry.latitude),
+       longitude: Number(telemetry.longitude),
+       speed: telemetry.speed ? Number(telemetry.speed) : undefined,
+       bearing: telemetry.bearing ? Number(telemetry.bearing) : undefined,
+       temperature: telemetry.temperature
+         ? Number(telemetry.temperature)
+         : undefined,
+       humidity: telemetry.humidity ? Number(telemetry.humidity) : undefined,
+       datetime,
+     } as SensorData,
+     tripId: null,
+     companyId: vehicle.company_id,
+   };
+ }
+
+
+ async saveBatchTelemetry(
+   tracker: Tracker,
+   batch: TelemetryDto[],
+ ): Promise<SaveTelemetryResult | null> {
+   if (!tracker.vehicle_id || batch.length === 0) {
+     return null;
+   }
+
+
+   const sortedBatch = [...batch].sort((a, b) => {
+     const dateA = new Date(a.datetime);
+     const dateB = new Date(b.datetime);
+     return dateA.getTime() - dateB.getTime();
+   });
+
+
+   const minTimestamp = new Date(sortedBatch[0].datetime);
+   const maxTimestamp = new Date(sortedBatch[sortedBatch.length - 1].datetime);
+
+
+   const trips = await this.tripRepository
+     .createQueryBuilder('trip')
+     .where('trip.vehicle_id = :vehicleId', { vehicleId: tracker.vehicle_id })
+     .andWhere('trip.actual_start_datetime <= :maxTimestamp', { maxTimestamp })
+     .andWhere(
+       '(trip.end_datetime IS NULL OR trip.end_datetime >= :minTimestamp)',
+       { minTimestamp },
+     )
+     .orderBy('trip.actual_start_datetime', 'ASC')
+     .getMany();
+
+
+   const findTripForTimestamp = (timestamp: Date): Trip | null => {
+     for (const trip of trips) {
+       if (
+         trip.actual_start_datetime &&
+         trip.actual_start_datetime <= timestamp &&
+         (!trip.end_datetime || trip.end_datetime >= timestamp)
+       ) {
+         return trip;
+       }
+     }
+     return null;
+   };
+
+
+   const sensorDataBatch: SensorData[] = [];
+
+
+   for (const telemetry of sortedBatch) {
+     const datetime = new Date(telemetry.datetime);
+     const trip = findTripForTimestamp(datetime);
+
+
+     if (trip) {
+       sensorDataBatch.push(
+         this.sensorDataRepository.create({
+           trip_id: trip.trip_id,
+           latitude: Number(telemetry.latitude),
+           longitude: Number(telemetry.longitude),
+           speed: telemetry.speed ? Number(telemetry.speed) : undefined,
+           bearing: telemetry.bearing ? Number(telemetry.bearing) : undefined,
+           datetime,
+           temperature: telemetry.temperature
+             ? Number(telemetry.temperature)
+             : undefined,
+           humidity: telemetry.humidity
+             ? Number(telemetry.humidity)
+             : undefined,
+         }),
+       );
+     }
+   }
+
+
+   if (sensorDataBatch.length > 0) {
+     await this.sensorDataRepository.save(sensorDataBatch);
+   }
+
+
+   return this.saveTelemetry(tracker, sortedBatch[sortedBatch.length - 1]);
+ }
+
+
+ async getChannelTokensByTripId(tripId: number): Promise<string[]> {
+   const channels = await this.trackingChannelRepository.find({
+     where: { assigned_trip_id: tripId },
+     select: ['public_token'],
+   });
+
+
+   return channels.map((c) => c.public_token);
+ }
+
+
+ async invalidateVehicleTripCache(vehicleId: number): Promise<void> {
+   const vehicle = await this.vehicleRepository.findOne({
+     where: { vehicle_id: vehicleId },
+     relations: ['tracker'],
+   });
+
+
+   if (vehicle?.tracker) {
+     await this.cacheService.invalidateTripMapping(vehicle.tracker.tracker_id);
+   }
+ }
+}
+
+
+
+
+2.4. Програмна реалізація серверної частини
+Функції адміністрування та захисту даних реалізовано через декларативну рольову модель доступу (RBAC), яка забезпечується класом RolesGuard. Цей компонент перехоплює HTTP-запити до захищених маршрутів, аналізує метадані методу (через Reflector) та перевіряє роль користувача (owner, dispatcher, driver), отриману з JWT-токена. Такий підхід дозволяє централізовано керувати правами доступу до всіх ресурсів системи, відокремлюючи логіку безпеки від бізнес-логіки контролерів, та гарантує, що, наприклад, водій не зможе отримати доступ до функцій планування рейсів або керування компанією.
+
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+ constructor(private reflector: Reflector) {}
+
+
+ canActivate(context: ExecutionContext): boolean {
+   const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
+     ROLES_KEY,
+     [context.getHandler(), context.getClass()],
+   );
+
+
+   if (!requiredRoles) {
+     return true;
+   }
+
+
+   const request = context.switchToHttp().getRequest<RequestWithUser>();
+   const user = request.user;
+   return requiredRoles.some((role) => user?.role === role);
+ }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+________________
+
+
+ВИСНОВКИ
+У ході виконання лабораторної роботи було успішно спроєктовано та реалізовано розширену бізнес-логіку серверної частини системи, функціональність якої виходить за межі стандартних CRUD-операцій. Основну увагу було зосереджено на розробці спеціалізованих алгоритмів обробки даних, зокрема управлінні складним життєвим циклом бізнес-сутностей та реалізації умовної логіки збереження інформації залежно від контексту (стану) системи. Це дозволило забезпечити коректну роботу зі значними масивами вхідних даних, включно з обробкою асинхронних подій та сценаріїв відновлення історії після втрати зв’язку.
+Також було розроблено та імплементовано надійні механізми адміністрування для централізованого керування ресурсами компанії та обліковими записами користувачів. Реалізація гнучкої рольової моделі дозволила забезпечити суворе розмежування прав доступу до функціоналу системи, захищаючи критично важливі адміністративні операції від несанкціонованого втручання. Створена архітектура гарантує безпечну та масштабовану взаємодію між різними учасниками бізнес-процесу, надаючи адміністраторам ефективні інструменти контролю за всіма аспектами роботи системи.
+Репозиторій на GitHub: https://github.com/OrionixTrack/backend
