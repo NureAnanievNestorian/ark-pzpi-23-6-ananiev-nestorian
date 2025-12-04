@@ -1,0 +1,445 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+
+
+ФАКУЛЬТЕТ КОМП’ЮТЕРНИХ НАУК
+КАТЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+
+
+
+
+
+
+
+
+ЗВІТ
+до лабораторної роботи №2 з дисципліни
+«Аналіз та рефакторинґ коду»
+на тему: «РОЗРОБКА БАЗИ ДАНИХ ДЛЯ СЕРВЕРНОЇ ЧАСТИНИ ПРОГРАМНОЇ СИСТЕМИ ТА ПРИКЛАДНОГО ПРОГРАМНОГО ІНТЕРФЕЙСУ (API)»
+
+
+
+
+
+
+
+
+Виконав:                                                                                                  Перевірив:
+ст. гр. ПЗПІ-23-6                                                                      ас. катедри ПІ
+Ананьєв Несторіан Сергійович                        Дашенков Дмитро Сергійович
+
+
+
+
+Харків 2025
+
+
+
+
+1 ЗАВДАННЯ
+
+
+У ході виконання лабораторної роботи необхідно спроєктувати та реалізувати серверну частину програмної системи, зосередившись на розробці бази даних та прикладного програмного інтерфейсу (API). Першим етапом є розробка архітектури системи, що включає створення UML-діаграми прецедентів для серверної частини, побудову ER-діаграми для моделювання даних та формування схеми структури бази даних. На основі цих моделей потрібно створити фізичну базу даних та реалізувати програмні функції для взаємодії з нею, використовуючи підходи ORM або CoRM.
+Наступним кроком є розробка API (REST, GraphQL або gRPC) для забезпечення обміну даними між сервером і клієнтом, а також створення детальної специфікації цього інтерфейсу.
+
+
+________________
+
+
+2 ОПИС ВИКОНАНОЇ РОБОТИ
+2.1. Опис інженерних рішень та архітектури системи
+Для розробки серверної частини програмної системи обрано архітектурний стиль REST API (Representational State Transfer). Цей підхід забезпечує чітке розділення логіки між клієнтом та сервером, дозволяючи використовувати єдиний бекенд як для веб-інтерфейсу диспетчера, так і для мобільного застосунку водіїв. Взаємодія здійснюється через стандартні HTTP-методи (GET, POST, PATCH, DELETE), а обмін даними відбувається у форматі JSON, що гарантує високу сумісність, масштабованість та легкість інтеграції зовнішніх сервісів.
+У якості основного фреймворку використано NestJS – прогресивну платформу на базі Node.js. Вибір зумовлений його модульною архітектурою, яка базується на принципах Dependency Injection (впровадження залежностей), що сприяє написанню структурованого та легко тестованого коду. Використання мови TypeScript забезпечує сувору типізацію, що значно знижує кількість помилок на етапі розробки та покращує читабельність коду. Крім того, NestJS надає вбудовані інструменти для валідації вхідних даних та декларативного опису API через декоратори.
+Для надійного зберігання даних обрано реляційну систему керування базами даних PostgreSQL. Вона забезпечує відповідність стандартам ACID та ефективну роботу зі складними зв’язками між сутностями системи (користувачі, компанії, транспорт, поїздки). Взаємодія з базою даних реалізована за допомогою TypeORM – об’єктно-реляційного мапера (ORM). Використання TypeORM дозволяє працювати із записами бази даних як з об’єктами класів, автоматизує створення та міграцію схем БД, а також забезпечує додатковий рівень безпеки, захищаючи від SQL-ін'єкцій.
+2.2. Проєктування бази даних та структури системи
+Для формалізації функціональних вимог розроблено UML-діаграму прецедентів (див. рис. 2.1), яка визначає ролі акторів (Owner, Dispatcher, Driver) та логіку їхньої взаємодії з системою. 
+  
+
+Рисунок 2.1 – UML-діаграма прецедентів
+
+
+Інформаційну модель проєкту представлено на ER-діаграмі (рис. 2.2), що описує зв’язки між ключовими сутностями.
+  
+
+Рисунок 2.2 – ER-діаграма
+
+
+ На основі логічної моделі реалізовано фізичну структуру бази даних. Детальна схема таблиць із зазначенням типів даних та обмежень цілісності (PK, FK) наведена на рис. 2.3.
+  
+
+Рисунок 2.3 – Схема БД
+
+
+2.3. Специфікація прикладного програмного інтерфейсу (API)
+2.3.1 Автентифікація 
+* POST /auth/owner/register 
+* POST /auth/verify-email 
+* POST /auth/resend-verification 
+* POST /auth/owner/login 
+* POST /auth/dispatcher/login 
+* POST /auth/driver/login 
+* POST /auth/owner/forgot-password 
+* POST /auth/dispatcher/forgot-password 
+* POST /auth/driver/forgot-password
+* POST /auth/reset-password
+2.3.2 Профілі користувачів
+* GET /owner/profile 
+* GET /dispatcher/profile 
+* GET /driver/profile
+2.3.3 Профілі користувачів (Співробітники)
+* GET /owner/employees/drivers 
+* GET /owner/employees/dispatchers 
+* PUT /owner/employees/drivers/{id} 
+* DELETE /owner/employees/drivers/{id} 
+* PUT /owner/employees/dispatchers/{id} 
+* DELETE /owner/employees/dispatchers/{id}
+2.3.4 Транспортні засоби 
+* GET /owner/vehicles 
+* POST /owner/vehicles 
+* GET /owner/vehicles/{id} 
+* PUT /owner/vehicles/{id}
+* DELETE /owner/vehicles/{id}
+2.3.5 GPS-трекери 
+* GET /owner/trackers 
+* POST /owner/trackers
+* GET /owner/trackers/{id} 
+* PUT /owner/trackers/{id}
+* DELETE /owner/trackers/{id}
+2.3.6 Канали відстеження
+* GET /owner/tracking-channels 
+* POST /owner/tracking-channels 
+* GET /owner/tracking-channels/{id} 
+* PUT /owner/tracking-channels/{id} 
+* DELETE /owner/tracking-channels/{id}
+
+
+2.4. Програмна реалізація серверної частини
+Програмна реалізація системи виконана за модульним принципом на базі фреймворку NestJS. Кожна предметна область (авторизація, транспорт, водії, поїздки) виділена в окремий модуль, що містить контролери для маршрутизації запитів, сервіси для бізнес-логіки та сутності для відображення таблиць бази даних. Розглянемо реалізацію модуля управління транспортними засобами, який демонструє повний цикл обробки даних: від отримання HTTP-запиту до збереження інформації у PostgreSQL.
+Контролери у системі виступають вхідною точкою для API. Вони відповідають за маршрутизацію, валідацію вхідних даних за допомогою DTO (Data Transfer Objects) та перевірку прав доступу користувачів.
+Нижче наведено фрагмент коду класу VehiclesController. У ньому визначено методи для створення нового транспортного засобу (POST) та отримання списку авто (GET). За допомогою декораторів доступ дозволено лише авторизованим користувачам із відповідною роллю.
+
+
+@ApiTags('Vehicles')
+@ApiBearerAuth('JWT-auth')
+@UseGuards(RolesGuard)
+@Roles(UserRole.COMPANY_OWNER)
+@Controller('owner/vehicles')
+export class VehicleController {
+ constructor(private readonly vehicleService: VehicleService) {}
+
+
+ @Get()
+ @ApiOperation({ summary: 'Get all vehicles' })
+ async findAll(
+   @CurrentUser() user: CurrentUserData,
+   @Query() query: VehicleQueryDto,
+ ): Promise<VehicleResponseDto[]> {
+   return this.vehicleService.findAll(user.companyId, query);
+ }
+
+
+ @Get(':id')
+ @ApiOperation({ summary: 'Get vehicle by ID' })
+ @ApiParam({ name: 'id', description: 'Vehicle ID' })
+ async findOne(
+   @Param('id', ParseIntPipe) id: number,
+   @CurrentUser() user: CurrentUserData,
+ ): Promise<VehicleResponseDto> {
+   return this.vehicleService.findOne(id, user.companyId);
+ }
+
+
+ @Post()
+ @ApiOperation({ summary: 'Create a new vehicle' })
+ async create(
+   @CurrentUser() user: CurrentUserData,
+   @Body() createVehicleDto: CreateVehicleDto,
+ ): Promise<VehicleResponseDto> {
+   return this.vehicleService.create(user.companyId, createVehicleDto);
+ }
+
+
+ @Put(':id')
+ @ApiOperation({ summary: 'Update vehicle' })
+ @ApiParam({ name: 'id', description: 'Vehicle ID' })
+ async update(
+   @Param('id', ParseIntPipe) id: number,
+   @CurrentUser() user: CurrentUserData,
+   @Body() updateVehicleDto: UpdateVehicleDto,
+ ): Promise<VehicleResponseDto> {
+   return this.vehicleService.update(id, user.companyId, updateVehicleDto);
+ }
+
+
+ @Delete(':id')
+ @HttpCode(HttpStatus.NO_CONTENT)
+ @ApiOperation({ summary: 'Delete vehicle' })
+ @ApiParam({ name: 'id', description: 'Vehicle ID' })
+ async remove(
+   @Param('id', ParseIntPipe) id: number,
+   @CurrentUser() user: CurrentUserData,
+ ): Promise<void> {
+   return this.vehicleService.remove(id, user.companyId);
+ }
+}
+
+
+Безпосередня робота з даними винесена у сервісний шар, що дозволяє відділити бізнес-логіку від обробки HTTP-запитів. Сервіси використовують патерн Repository для виконання SQL-запитів до бази даних через ORM TypeORM.
+
+
+@Injectable()
+export class VehicleService {
+ constructor(
+   @InjectRepository(Vehicle)
+   private vehicleRepository: Repository<Vehicle>,
+   @InjectRepository(Trip)
+   private tripRepository: Repository<Trip>,
+   @InjectRepository(Tracker)
+   private trackerRepository: Repository<Tracker>,
+ ) {}
+
+
+ async findAll(
+   companyId: number,
+   query: VehicleQueryDto,
+ ): Promise<VehicleResponseDto[]> {
+   const qb = this.vehicleRepository
+     .createQueryBuilder('vehicle')
+     .leftJoinAndSelect('vehicle.tracker', 'tracker')
+     .where('vehicle.company_id = :companyId', { companyId });
+
+
+   if (query.search) {
+     qb.andWhere(
+       new Brackets((qb) => {
+         qb.where('vehicle.name ILIKE :search', {
+           search: `%${query.search}%`,
+         })
+           .orWhere('vehicle.license_plate ILIKE :search', {
+             search: `%${query.search}%`,
+           })
+           .orWhere('vehicle.brand ILIKE :search', {
+             search: `%${query.search}%`,
+           })
+           .orWhere('vehicle.model ILIKE :search', {
+             search: `%${query.search}%`,
+           });
+       }),
+     );
+   }
+
+
+   const vehicles = await qb
+     .orderBy(`vehicle.${query.sortBy}`, query.sortOrder)
+     .skip(query.offset)
+     .take(query.limit)
+     .getMany();
+
+
+   return vehicles.map((vehicle) => VehicleMapper.toDto(vehicle));
+ }
+
+
+ async findOne(id: number, companyId: number): Promise<VehicleResponseDto> {
+   const vehicle = await this.vehicleRepository.findOne({
+     where: { vehicle_id: id, company_id: companyId },
+     relations: ['tracker'],
+   });
+
+
+   if (!vehicle) {
+     throw new NotFoundException('Vehicle not found');
+   }
+
+
+   return VehicleMapper.toDto(vehicle);
+ }
+
+
+ async create(
+   companyId: number,
+   createVehicleDto: CreateVehicleDto,
+ ): Promise<VehicleResponseDto> {
+   const existingVehicle = await this.vehicleRepository.findOne({
+     where: { license_plate: createVehicleDto.license_plate },
+   });
+
+
+   if (existingVehicle) {
+     throw new ConflictException(
+       'Vehicle with this license plate already exists',
+     );
+   }
+
+
+   const vehicle = this.vehicleRepository.create({
+     ...createVehicleDto,
+     company_id: companyId,
+   });
+
+
+   const savedVehicle = await this.vehicleRepository.save(vehicle);
+
+
+   return VehicleMapper.toDto(savedVehicle);
+ }
+
+
+ async update(
+   id: number,
+   companyId: number,
+   updateVehicleDto: UpdateVehicleDto,
+ ): Promise<VehicleResponseDto> {
+   const vehicle = await this.vehicleRepository.findOne({
+     where: { vehicle_id: id, company_id: companyId },
+     relations: ['tracker'],
+   });
+
+
+   if (!vehicle) {
+     throw new NotFoundException('Vehicle not found');
+   }
+
+
+   const existingVehicle = await this.vehicleRepository.findOne({
+     where: {
+       license_plate: updateVehicleDto.license_plate,
+       vehicle_id: Not(id),
+     },
+   });
+
+
+   if (existingVehicle) {
+     throw new ConflictException(
+       'Vehicle with this license plate already exists',
+     );
+   }
+
+
+   Object.assign(vehicle, updateVehicleDto);
+   const updatedVehicle = await this.vehicleRepository.save(vehicle);
+
+
+   return VehicleMapper.toDto(updatedVehicle);
+ }
+
+
+ async remove(id: number, companyId: number): Promise<void> {
+   const vehicle = await this.vehicleRepository.findOne({
+     where: { vehicle_id: id, company_id: companyId },
+   });
+
+
+   if (!vehicle) {
+     throw new NotFoundException('Vehicle not found');
+   }
+
+
+   const hasFutureTrips = await this.tripRepository.exists({
+     where: {
+       vehicle_id: id,
+       status: In([TripStatus.PLANNED, TripStatus.IN_PROGRESS]),
+     },
+   });
+
+
+   if (hasFutureTrips) {
+     throw new ConflictException(
+       'Cannot remove vehicle with planned or in-progress trips',
+     );
+   }
+
+
+   await this.trackerRepository.update(
+     { vehicle_id: id },
+     { vehicle_id: undefined },
+   );
+
+
+   await this.tripRepository.update(
+     { vehicle_id: id },
+     { vehicle_id: undefined },
+   );
+
+
+   await this.vehicleRepository.remove(vehicle);
+ }
+}
+
+
+Структура таблиць бази даних у проєкті описується за допомогою класів-сутностей (Entities). Використання декораторів TypeORM дозволяє декларативно визначити типи стовпців, обмеження (constraints) та зв’язки між таблицями безпосередньо у коді, що забезпечує відповідність фізичної БД об’єктній моделі програми.
+Нижче наведено код сутності Vehicle. 
+
+
+@Entity('vehicle')
+export class Vehicle {
+ @PrimaryGeneratedColumn()
+ vehicle_id: number;
+
+
+ @Column({ type: 'varchar', length: 255 })
+ name: string;
+
+
+ @Column({ type: 'varchar', length: 50, unique: true })
+ license_plate: string;
+
+
+ @Column({ type: 'boolean', default: true })
+ is_active: boolean;
+
+
+ @Column({ type: 'varchar', length: 100, nullable: true })
+ brand?: string;
+
+
+ @Column({ type: 'varchar', length: 100, nullable: true })
+ model?: string;
+
+
+ @Column({ type: 'int', nullable: true })
+ production_year?: number;
+
+
+ @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+ capacity?: number;
+
+
+ @Column({ type: 'int', nullable: true })
+ company_id?: number;
+ @ManyToOne(() => Company, (company) => company.vehicles)
+ @JoinColumn({ name: 'company_id' })
+ company: Company;
+
+
+ @OneToOne(() => Tracker, (tracker) => tracker.vehicle)
+ tracker: Tracker;
+
+
+ @OneToMany(() => Trip, (trip) => trip.vehicle)
+ trips: Trip[];
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+________________
+
+
+ВИСНОВКИ
+У ході лабораторної роботи було спроєктовано реляційну базу даних для системи логістики, розроблено REST API для CRUD-операцій над основними сутностями (водії, транспорт, поїздки) та реалізовано взаємодію сервера з PostgreSQL за допомогою ORM.
+Репозиторій на GitHub: https://github.com/OrionixTrack/backend
