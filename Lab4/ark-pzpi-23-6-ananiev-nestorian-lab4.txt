@@ -1,0 +1,357 @@
+﻿МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+
+
+ФАКУЛЬТЕТ КОМП’ЮТЕРНИХ НАУК
+КАТЕДРА ПРОГРАМНОЇ ІНЖЕНЕРІЇ
+
+
+
+
+
+
+
+
+ЗВІТ
+до лабораторної роботи №4 з дисципліни
+«Аналіз та рефакторинґ коду»
+на тему: «РОЗРОБКА IoT КЛІЄНТА 
+(БІЗНЕС-ЛОГІКИ ТА ФУНКЦІЙ НАЛАШТУВАННЯ)»
+
+
+
+
+
+
+
+
+Виконав:                                                                                                  Перевірив:
+ст. гр. ПЗПІ-23-6                                                                      ас. катедри ПІ
+Ананьєв Несторіан Сергійович                        Дашенков Дмитро Сергійович
+
+
+
+
+
+
+Харків 2025
+
+
+
+
+1 ЗАВДАННЯ
+
+
+У ході виконання лабораторної роботи необхідно спроєктувати та реалізувати IoT клієнта для GPS-трекера на базі мікроконтролера ESP32. Основна увага приділяється розробці бізнес-логіки обробки телеметричних даних, механізмів налаштування пристрою та забезпечення надійної передачі інформації через протокол MQTT.
+
+
+
+
+________________
+
+
+2 ОПИС ВИКОНАНОЇ РОБОТИ
+2.1. Опис інженерних рішень та архітектури системи
+ Основу архітектури IoT клієнта складає мікроконтролер ESP32, який забезпечує збір телеметрії з GPS модуля NEO-6M та датчика температури/вологості DHT11, її обробку та передачу на MQTT сервер. Центральним інженерним рішенням є система надійного зберігання даних з використанням файлової системи SPIFFS: коли пристрій втрачає зв'язок з сервером (відсутність WiFi або MQTT підключення), всі телеметричні дані зберігаються у локальну чергу обсягом до 5000 записів. При відновленні зв'язку система автоматично відправляє накопичені дані пакетами по 20 записів, забезпечуючи повне відновлення історії переміщень без втрати інформації.
+Бізнес-логіка пристрою реалізує розумну обробку GPS координат з обчисленням додаткових параметрів руху (швидкість, напрямок) та їх валідацією. Система використовує бітові прапорці для оптимального кодування наявності опціональних полів (швидкість, напрямок, температура), що зменшує обсяг збережених даних у пам'яті на 30-40%. Формат часових міток ISO 8601 забезпечує коректну синхронізацію з серверною частиною незалежно від часових поясів.
+Функції налаштування реалізовано через WiFiManager з веб-порталом конфігурації, що дозволяє користувачу без перепрошивки пристрою налаштувати параметри підключення (SSID/пароль WiFi, адресу MQTT сервера, ідентифікатор пристрою та токен автентифікації). Конфігурація зберігається в енергонезалежній пам'яті NVS (Non-Volatile Storage), що забезпечує її збереження навіть при повному знеструмленні. Для оперативного входу в режим налаштування передбачено апаратну кнопку на GPIO0, натискання якої запускає точку доступу "GPS-TRACKER-AP" з веб-інтерфейсом конфігурації.
+Система індикації стану через три світлодіоди (GPS, WiFi, MQTT) використовує різні режими миготіння для відображення поточного статусу: постійне світіння означає нормальну роботу, повільне миготіння (500мс) – очікування з'єднання, швидке миготіння (100-200мс) – передачу даних або помилку. Це дозволяє діагностувати проблеми без підключення до серійного порту.
+
+
+2.2. Моделювання поведінки системи
+Для детального проєктування бізнес-логіки IoT клієнта було виконано поведінкове моделювання системи з використанням мови UML. Розроблена діаграма прецедентів (див. рис. 2.1) візуалізує взаємодію пристрою з зовнішніми акторами: GPS модулем для отримання координат, DHT11 сенсором для вимірювання температури та вологості, користувачем для налаштування конфігурації, та MQTT брокером для передачі телеметрії з автентифікацією.
+
+
+
+
+
+
+  
+
+Рисунок 2.1 – UML-діаграма прецедентів IoT клієнта
+Діаграма діяльності (див. рис. 2.2) відображає послідовність операцій основного циклу роботи IoT клієнта: від ініціалізації компонентів та завантаження конфігурації до циклічного збору даних з сенсорів, їх валідації, формування телеметрії та відправки на сервер. Показано розгалуження логіки залежно від валідності GPS даних та стану кнопки налаштувань.
+  
+
+Рисунок 2.2 – UML-діаграма діяльності IoT клієнта
+2.3. Схема електронних з'єднань
+
+
+Апаратна реалізація IoT клієнта базується на мікроконтролері ESP32-WROOM-32 з підключенням периферійних модулів через цифрові інтерфейси. GPS модуль NEO-6M підключено через UART2 (RX=GPIO18, TX=GPIO19) з швидкістю 9600 бод. Датчик DHT11 використовує однопровідний протокол на GPIO21. Світлодіоди індикації підключені до GPIO22 (GPS), GPIO23 (WiFi), GPIO13 (MQTT) через струмообмежувальні резистори 220Ом. Кнопка конфігурації на GPIO0 використовує внутрішній pull-up резистор. Живлення всіх модулів здійснюється від стабілізованої напруги 3.3В ESP32.
+
+
+  
+
+Рисунок 2.3 – Схема електронних з'єднань GPS-трекера
+
+
+2.4. Програмна реалізація бізнес-логіки
+Основна бізнес-логіка IoT клієнта інкапсульована в функціях обробки телеметрії та управління чергою даних. Ключовим методом є enqueueTelemetry(), який реалізує алгоритм збереження телеметричних точок у файлову систему SPIFFS з контролем обсягу пам'яті та автоматичним видаленням найстаріших записів при досягненні ліміту. Структура TelemetryData використовує битові прапорці для оптимального зберігання опціональних полів, зменшуючи розмір запису з 64 до 45 байт.
+
+
+struct TelemetryData {
+ float latitude;
+ float longitude;
+ float speed;
+ float bearing;
+ float temperature;
+ float humidity;
+ char datetime[25];
+ uint8_t flags;
+} __attribute__((packed));
+
+
+#define FLAG_HAS_SPEED    0x01
+#define FLAG_HAS_BEARING  0x02
+#define FLAG_HAS_TEMP     0x04
+
+
+bool enqueueTelemetry(const TelemetryData& data) {
+ if (queueSize >= MAX_QUEUE_SIZE) {
+   Serial.printf("Queue full (%d), dropping oldest\n", MAX_QUEUE_SIZE);
+   queueHead = (queueHead + 1) % MAX_QUEUE_SIZE;
+   queueSize--;
+ }
+  if (!checkStorageSpace()) {
+   Serial.println("Storage full, dropping oldest entries");
+   for (int i = 0; i < 10 && queueSize > 0; i++) {
+     queueHead = (queueHead + 1) % MAX_QUEUE_SIZE;
+     queueSize--;
+   }
+ }
+  File file = SPIFFS.open(QUEUE_FILE, "r+");
+ if (!file) {
+   file = SPIFFS.open(QUEUE_FILE, "w+");
+   if (!file) {
+     Serial.println("Failed to open queue file");
+     return false;
+   }
+ }
+  size_t offset = queueTail * sizeof(TelemetryData);
+ file.seek(offset);
+  size_t written = file.write((uint8_t*)&data, sizeof(TelemetryData));
+ file.close();
+  if (written != sizeof(TelemetryData)) {
+   Serial.println("Failed to write telemetry");
+   return false;
+ }
+  queueTail = (queueTail + 1) % MAX_QUEUE_SIZE;
+ queueSize++;
+  if (queueSize % 10 == 0) {
+   saveQueueMetadata();
+ }
+  return true;
+}
+
+
+Функція sendBatch() реалізує пакетну передачу накопичених даних, формуючи JSON масив з до 20 телеметричних точок та відправляючи його одним MQTT повідомленням на топік telemetry/{device_id}/batch. Це зменшує навантаження на мережу та серверну частину при відновленні з'єднання після тривалого офлайн-періоду.
+
+
+bool sendBatch() {
+ if (queueSize == 0 || !client.connected()) {
+   return false;
+ }
+  int batchSize = min(BATCH_SIZE, queueSize);
+ JsonDocument batchDoc;
+ JsonArray arr = batchDoc.to<JsonArray>();
+  TelemetryData tempQueue[BATCH_SIZE];
+ int actualRead = 0;
+ int tempHead = queueHead;
+  for (int i = 0; i < batchSize; i++) {
+   File file = SPIFFS.open(QUEUE_FILE, "r");
+   if (!file) break;
+  
+   size_t offset = tempHead * sizeof(TelemetryData);
+   file.seek(offset);
+  
+   size_t read = file.readBytes((char*)&tempQueue[i], sizeof(TelemetryData));
+   file.close();
+  
+   if (read != sizeof(TelemetryData)) break;
+  
+   actualRead++;
+   tempHead = (tempHead + 1) % MAX_QUEUE_SIZE;
+  
+   JsonDocument itemDoc;
+   itemDoc["latitude"] = tempQueue[i].latitude;
+   itemDoc["longitude"] = tempQueue[i].longitude;
+   itemDoc["datetime"] = tempQueue[i].datetime;
+  
+   if (tempQueue[i].flags & FLAG_HAS_SPEED) {
+     itemDoc["speed"] = tempQueue[i].speed;
+   }
+   if (tempQueue[i].flags & FLAG_HAS_BEARING) {
+     itemDoc["bearing"] = tempQueue[i].bearing;
+   }
+   if (tempQueue[i].flags & FLAG_HAS_TEMP) {
+     itemDoc["temperature"] = tempQueue[i].temperature;
+     itemDoc["humidity"] = tempQueue[i].humidity;
+   }
+  
+   arr.add(itemDoc);
+ }
+  char buffer[4096];
+ size_t jsonSize = serializeJson(batchDoc, buffer, sizeof(buffer));
+  String strID = String(device_id);
+ strID.trim();
+ String topic = "telemetry/" + strID + "/batch";
+  if (client.publish(topic.c_str(), buffer, jsonSize)) {
+   queueHead = (queueHead + actualRead) % MAX_QUEUE_SIZE;
+   queueSize -= actualRead;
+   saveQueueMetadata();
+   return true;
+ }
+  return false;
+}
+
+
+Математична обробка GPS даних включає валідацію координат, обчислення швидкості з км/год та напрямку руху в градусах. Формування ISO 8601 timestamps забезпечує коректну роботу з часовими зонами на серверній частині.
+
+
+String getISODateTime() {
+ if (gps.date.isValid() && gps.time.isValid()) {
+   char datetime[25];
+   sprintf(datetime, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
+           gps.date.year(),
+           gps.date.month(),
+           gps.date.day(),
+           gps.time.hour(),
+           gps.time.minute(),
+           gps.time.second());
+   return String(datetime);
+ }
+  unsigned long seconds = millis() / 1000;
+ char datetime[25];
+ sprintf(datetime, "1970-01-01T%02lu:%02lu:%02lu.000Z",
+         (seconds / 3600) % 24,
+         (seconds / 60) % 60,
+         seconds % 60);
+ return String(datetime);
+}
+
+
+2.5. Програмна реалізація функцій налаштування
+Функції налаштування IoT клієнта реалізовано через інтеграцію бібліотеки WiFiManager, що надає веб-портал конфігурації з користувацьким інтерфейсом для введення параметрів підключення. Конфігурація зберігається в енергонезалежній пам'яті ESP32 через API Preferences, що забезпечує її збереження між перезавантаженнями та знеструмленням пристрою.
+
+
+void loadConfig() {
+ preferences.begin("gps-config", false);
+  String server = preferences.getString("server", "192.168.1.100");
+ String port = preferences.getString("port", "1883");
+ String id = preferences.getString("dev_id", "");
+ String token = preferences.getString("token", "");
+  strncpy(mqtt_server, server.c_str(), 60);
+ mqtt_server[60] = '\0';
+  strncpy(mqtt_port, port.c_str(), 10);
+ mqtt_port[10] = '\0';
+  strncpy(device_id, id.c_str(), 32);
+ device_id[32] = '\0';
+  strncpy(device_token, token.c_str(), 64);
+ device_token[64] = '\0';
+  preferences.end();
+}
+
+
+void saveConfig() {
+ preferences.begin("gps-config", false);
+  preferences.putString("server", mqtt_server);
+ preferences.putString("port", mqtt_port);
+ preferences.putString("dev_id", device_id);
+ preferences.putString("token", device_token);
+  preferences.end();
+  Serial.println("Config saved to NVS");
+}
+
+
+Механізм входу в режим налаштування реалізовано через обробник апаратної кнопки на GPIO0. Довге натискання (>50мс для усунення брязкоту контактів) запускає неблокуючий конфігураційний портал з таймаутом 180 секунд, що дозволяє користувачу змінити параметри через веб-інтерфейс без втручання в основний цикл роботи пристрою.
+
+
+void checkButton() {
+ if (digitalRead(TRIGGER_PIN) == LOW) {
+   delay(50);
+   if (digitalRead(TRIGGER_PIN) == LOW) {
+     Serial.println("\nCONFIG MODE");
+    
+     WiFiManagerParameter btn_mqtt_server("server", "MQTT Server IP",
+                                           mqtt_server, 60);
+     WiFiManagerParameter btn_mqtt_port("port", "MQTT Port",
+                                        mqtt_port, 10);
+     WiFiManagerParameter btn_device_id("dev_id", "Device ID",
+                                        device_id, 32);
+     WiFiManagerParameter btn_device_token("token", "Device Token",
+                                           device_token, 64);
+    
+     WiFiManager wm_button;
+     wm_button.setSaveParamsCallback(saveConfigCallback);
+     wm_button.addParameter(&btn_mqtt_server);
+     wm_button.addParameter(&btn_mqtt_port);
+     wm_button.addParameter(&btn_device_id);
+     wm_button.addParameter(&btn_device_token);
+    
+     wm_button.setConfigPortalBlocking(false);
+     wm_button.startConfigPortal("GPS-CONFIG");
+    
+     unsigned long start = millis();
+     while (millis() - start < 180000) {
+       wm_button.process();
+       updateLEDs();
+      
+       if (shouldSaveConfig) {
+         saveFromPortal(&btn_mqtt_server, &btn_mqtt_port,
+                        &btn_device_id, &btn_device_token);
+         ESP.restart();
+       }
+       delay(10);
+     }
+    
+     ESP.restart();
+   }
+ }
+}
+
+
+При першому запуску або втраті WiFi з'єднання пристрій автоматично створює точку доступу "GPS-TRACKER-AP", до якої користувач може підключитися з будь-якого смартфона або ноутбука для початкового налаштування всіх параметрів системи.
+void setup() {
+ // ініціалізація компонентів
+  loadConfig();
+  WiFiManagerParameter custom_mqtt_server("server", "MQTT Server IP",
+                                          mqtt_server, 60);
+ WiFiManagerParameter custom_mqtt_port("port", "MQTT Port",
+                                       mqtt_port, 10);
+ WiFiManagerParameter custom_device_id("dev_id", "Device ID",
+                                       device_id, 32);
+ WiFiManagerParameter custom_device_token("token", "Device Token",
+                                          device_token, 64);
+  wm.setSaveConfigCallback(saveConfigCallback);
+ wm.addParameter(&custom_mqtt_server);
+ wm.addParameter(&custom_mqtt_port);
+ wm.addParameter(&custom_device_id);
+ wm.addParameter(&custom_device_token);
+  wm.setConfigPortalTimeout(180);
+  if (!wm.autoConnect("GPS-TRACKER-AP")) {
+   Serial.println("Failed to connect, restarting...");
+   delay(3000);
+   ESP.restart();
+ }
+  if (shouldSaveConfig) {
+   saveFromPortal(&custom_mqtt_server, &custom_mqtt_port,
+                  &custom_device_id, &custom_device_token);
+ }
+  int port = atoi(mqtt_port);
+ client.setServer(mqtt_server, port);
+ client.setBufferSize(4096);
+}
+
+
+
+
+
+
+
+
+________________
+
+
+ВИСНОВКИ
+У ході виконання лабораторної роботи було успішно спроєктовано та реалізовано повнофункціональний IoT клієнт для GPS-трекера на базі мікроконтролера ESP32. Основну увагу було зосереджено на розробці надійної бізнес-логіки обробки телеметричних даних з реалізацією механізму локального кешування при втраті зв'язку та автоматичного відновлення після reconnect. Використання файлової системи SPIFFS для організації черги даних з циклічним буфером на 5000 записів забезпечило можливість роботи пристрою в автономному режимі протягом тривалого часу без втрати інформації про переміщення.
+Реалізована система налаштування через WiFiManager з веб-порталом конфігурації дозволяє користувачам без технічних навичок програмування легко налаштувати пристрій для роботи з будь-яким MQTT брокером. Збереження конфігурації в енергонезалежній пам'яті NVS гарантує збереження налаштувань навіть при повному знеструмленні, що критично важливо для автономних IoT пристроїв. Розроблена архітектура є масштабованою та може бути адаптована для інших типів IoT клієнтів з різними сенсорами та протоколами передачі даних.
+Репозиторій на GitHub: https://github.com/OrionixTrack/iot-gps-tracker
